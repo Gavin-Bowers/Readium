@@ -7,7 +7,9 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/http/pprof"
 	"path"
@@ -21,6 +23,7 @@ import (
 	"github.com/readium/go-toolkit/pkg/manifest"
 	"github.com/readium/go-toolkit/pkg/pub"
 	"github.com/readium/go-toolkit/pkg/streamer"
+	"github.com/rs/cors"
 	"github.com/sashabaranov/go-openai"
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/negroni"
@@ -70,6 +73,14 @@ func (s *PublicationServer) bookHandler(test bool) http.Handler {
 	// r.HandleFunc("/{filename}/search", s.search)
 	// r.HandleFunc("/{filename}/media-overlay", s.mediaOverlay)
 	r.HandleFunc("/{filename}/{asset:.*}", s.getAsset)
+
+	c := cors.New(cors.Options{
+		AllowedOrigins:   []string{"http://localhost:5173"},
+		AllowCredentials: true,
+	})
+
+	handler := c.Handler(r)
+	log.Fatal(http.ListenAndServe(":5080", handler))
 
 	return r
 }
@@ -249,25 +260,62 @@ func (s *PublicationServer) getAsset(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *PublicationServer) handleOpenAIRequest(w http.ResponseWriter, r *http.Request) {
+
+	// Set headers for chunked transfer encoding
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Header().Set("Transfer-Encoding", "chunked")
+
 	vars := mux.Vars(r)
 	message := vars["message"]
 
 	client := openai.NewClient(s.apiSecret)
-	resp, err := client.CreateChatCompletion(
-		context.Background(),
-		openai.ChatCompletionRequest{
-			Model: openai.GPT4oMini,
-			Messages: []openai.ChatCompletionMessage{
-				{
-					Role:    openai.ChatMessageRoleUser,
-					Content: message,
-				},
+	ctx := context.Background()
+
+	req := openai.ChatCompletionRequest{
+		Model: openai.GPT4oMini,
+		Messages: []openai.ChatCompletionMessage{
+			{
+				Role:    openai.ChatMessageRoleUser,
+				Content: message,
 			},
 		},
-	)
+		Stream: true,
+	}
+
+	stream, err := client.CreateChatCompletionStream(ctx, req)
 	if err != nil {
-		fmt.Printf("ChatCompletion error: %v\n", err)
+		fmt.Printf("ChatCompletionStream error: %v\n", err)
 		return
 	}
-	fmt.Println(resp.Choices[0].Message.Content)
+	defer stream.Close()
+
+	// Use a buffer to write chunks of data to the response
+	buffer := make([]byte, 0, 1024) // Buffer to accumulate chunks
+
+	for {
+		response, err := stream.Recv()
+		if errors.Is(err, io.EOF) {
+			fmt.Println("\nStream Finished")
+			return
+		}
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Stream error: %v", err), http.StatusInternalServerError)
+			return
+		}
+
+		// Write received content to the response
+		if response.Choices[0].Delta.Content != "" {
+			fmt.Printf(response.Choices[0].Delta.Content)
+			buffer = append(buffer, []byte(response.Choices[0].Delta.Content)...)
+			if len(buffer) > 0 {
+				_, err := w.Write(buffer)
+				if err != nil {
+					fmt.Printf("Write error: %v\n", err)
+					return
+				}
+				w.(http.Flusher).Flush() // Ensure data is sent to the client
+				buffer = buffer[:0]      // Reset buffer
+			}
+		}
+	}
 }

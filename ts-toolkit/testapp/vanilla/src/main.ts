@@ -17,18 +17,43 @@ window.addEventListener("aimagic", (ev) => {
     const detail = (ev as CustomEvent).detail as {
         command: string;
     };
-    aimagic()
+    aimagic(detail.command)
 });
 
-function aimagic() {
+async function aimagic(message: String) {
     console.log("Running magic");
     let page = getActivePage();
     const pageContent = page?.contentWindow?.document;
     let body = pageContent?.body;
 
     const addedText = document.createElement('p');
-    addedText.textContent = "Ai generated content goes here";
+    addedText.textContent = "AI Response: ";
     body?.appendChild(addedText);
+
+    try {
+        const response = await fetch('http://localhost:5080/api/streamAIResponse/' + message, {
+            method: 'POST',
+            headers: {
+            'Content-Type': 'application/json',
+            },
+            // body: JSON.stringify({ message }),
+        });
+        if (!response.body) { throw new Error('No response body'); }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+
+        while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+
+            const chunk = decoder.decode(value, { stream: true });
+            addedText.textContent = addedText.textContent + chunk;
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        addedText.textContent = "An error occured";
+    }
 }
 
 function getActivePage(): HTMLIFrameElement | undefined {
