@@ -13,21 +13,60 @@ import Peripherals from './peripherals';
 import FrameManager from '@readium/navigator/src/epub/frame/FrameManager';  
 import FXLFrameManager from '@readium/navigator/src/epub/fxl/FXLFrameManager';
 
-window.addEventListener("aimagic", (ev) => {
-    const detail = (ev as CustomEvent).detail as {
-        command: string;
-    };
-    aimagic(detail.command)
+window.addEventListener("aimagic", () => {
+    aimagic()
+});
+window.addEventListener("enableInput", () => {
+    enableInput();
 });
 
-async function aimagic(message: String) {
-    console.log("Running magic");
+function enableInput() {
     let page = getActivePage();
     const pageContent = page?.contentWindow?.document;
     let body = pageContent?.body;
 
+    const textarea = document.createElement('textarea');
+    textarea.id = "story-input";
+    textarea.style.width = '100%';
+    textarea.style.border = 'none';
+    textarea.style.outline = 'none';
+    textarea.style.padding = '0';
+    textarea.style.minHeight = '40px';
+    textarea.style.resize = 'none';
+    textarea.style.overflow = 'hidden';
+    textarea.style.fontSize = '16px';
+    textarea.style.fontFamily = '"Iowan Old Style", "Sitka Text", Palatino, "Book Antiqua", serif';
+    textarea.value = "Lily: ";
+    textarea.rows = 1;
+    
+    const autoResize = () => {
+        textarea.style.height = 'auto';
+        textarea.style.height = textarea.scrollHeight + 'px';
+    };
+
+    textarea.addEventListener('input', autoResize);
+    autoResize();
+    body?.appendChild(textarea);
+}
+
+async function aimagic() {
+    let page = getActivePage();
+    const pageContent = page?.contentWindow?.document;
+    let body = pageContent?.body;
+
+    const paragraphs = body?.getElementsByTagName('p');
+    const texts: string[] = [];
+    if (!paragraphs?.length) {return}
+    for (let i = 0; i < paragraphs.length; i++) {
+        texts.push(paragraphs[i].textContent || '');
+    }
+
+    const input = pageContent?.getElementById("story-input")?.nodeValue;
+    if (input) {texts.push(input)};
+
+    const message = texts.join('\n');
+
     const addedText = document.createElement('p');
-    addedText.textContent = "AI Response: ";
     body?.appendChild(addedText);
 
     try {
@@ -68,10 +107,12 @@ function getActivePage(): HTMLIFrameElement | undefined {
     return;
 }
 
+const bookid = "dGhlbXlzdGVyeW9mY2FzdGxldHVyaW5nLmVwdWI";
+
 async function load() {
     const currentURL = new URL(window.location.href);
-    let book = "http://localhost:5080/Y29sZS12b3lhZ2Utb2YtbGlmZS5lcHVi/manifest.json";
-    let publicationURL = "http://localhost:5080/Y29sZS12b3lhZ2Utb2YtbGlmZS5lcHVi/manifest.json";
+    let book = "http://localhost:5080/" + bookid + "/manifest.json";
+    let publicationURL = "http://localhost:5080/" + bookid + "/manifest.json";
     if(currentURL.searchParams.has("book")) {
         book = currentURL.searchParams.get("book")!;
     }
@@ -224,6 +265,7 @@ async function load() {
                         console.error("Unknown reader-control event", ev);
                 }
             })
+
         }).catch((error) => {
             console.error("Error loading manifest", error);
             alert(`Failed loading manifest ${selfLink}`);

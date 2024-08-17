@@ -17,7 +17,8 @@
       <div>
         <md-filled-icon-button title="Table of Contents" onclick="control('toc')"><md-icon >list</md-icon></md-filled-icon-button>
         <md-filled-icon-button title="Settings" onclick="control('settings')"><md-icon >settings</md-icon></md-filled-icon-button>
-        <md-filled-icon-button title="AI Magic Button" onclick="aimagic('test prompt')"><md-icon >automation</md-icon></md-filled-icon-button>
+        <md-filled-icon-button title="Enter Text" onclick="enableInput()"><md-icon >stylus</md-icon></md-filled-icon-button>
+        <md-filled-icon-button title="Submit" onclick="aimagic()"><md-icon >send</md-icon></md-filled-icon-button>
       </div>
     </header>
 
@@ -34,12 +35,11 @@
           }})
         );
       }
-      function aimagic(command) {
-        window.dispatchEvent(
-          new CustomEvent('aimagic', { detail: {
-            command: command,
-          }})
-        );
+      function aimagic() {
+        window.dispatchEvent(new CustomEvent('aimagic'));
+      }
+      function enableInput() {
+        window.dispatchEvent(new CustomEvent('enableInput'));
       }
     </script>
     <footer id="bottom-bar" aria-label="Bottom Bar">
