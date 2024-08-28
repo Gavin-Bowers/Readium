@@ -19,6 +19,48 @@ window.addEventListener("aimagic", () => {
 window.addEventListener("enableInput", () => {
     enableInput();
 });
+window.addEventListener("enableScroll", () => {
+    enableScroll();
+});
+window.addEventListener("toggleDarkMode", () => {
+    toggleDarkMode();
+});
+
+function enableScroll() {
+    let page = getActivePage();
+    
+    let wrapper = document.getElementById("wrapper");
+    if (!wrapper) return;
+    wrapper.style.overflow = "scroll";
+
+    let container = document.getElementById("container");
+    if (!container) return;
+    container.style.height = "200%";
+
+    const pageContent = page?.contentWindow?.document;
+    let html = pageContent?.documentElement;
+    if (html) {
+        let currentStyle = html.getAttribute('style') || '';
+        if (!currentStyle.includes('readium-scroll-on')) {
+            html.setAttribute('style', currentStyle + ' readium-scroll-on: true;');
+        }
+    }
+}
+
+function toggleDarkMode() {
+    let page = getActivePage();
+    const pageContent = page?.contentWindow?.document;
+    let html = pageContent?.documentElement;
+    if (html) {
+        let currentStyle = html.getAttribute('style') || '';
+        if (!currentStyle.includes('readium-night-on')) {
+            html.setAttribute('style', currentStyle + ' readium-night-on: true;');
+        } else {
+            let newStyle = currentStyle.replace("readium-night-on", "");
+            html.setAttribute('style', newStyle);
+        }
+    }
+}
 
 function enableInput() {
     let page = getActivePage();
@@ -54,28 +96,40 @@ async function aimagic() {
     const pageContent = page?.contentWindow?.document;
     let body = pageContent?.body;
 
-    const paragraphs = body?.getElementsByTagName('p');
+    const elements = body?.querySelectorAll('p, textarea');
     const texts: string[] = [];
-    if (!paragraphs?.length) {return}
-    for (let i = 0; i < paragraphs.length; i++) {
-        texts.push(paragraphs[i].textContent || '');
-    }
 
-    const input = pageContent?.getElementById("story-input")?.nodeValue;
-    if (input) {texts.push(input)};
+    elements?.forEach((element) => {
+        if (element.tagName.toLowerCase() === 'p') {
+            texts.push(element.textContent || '');
+        } else if (element.tagName.toLowerCase() === 'textarea') {
+            const textareaContent = (element as HTMLTextAreaElement).value;
+            texts.push(textareaContent);
+
+            // Create a new paragraph element
+            const newParagraph = document.createElement('p');
+            newParagraph.textContent = textareaContent;
+
+            // Replace the textarea with the new paragraph
+            element.parentNode?.replaceChild(newParagraph, element);
+        }
+    });
+
+    // const textArea = pageContent?.getElementById("story-input") as HTMLTextAreaElement;
+    // texts.push(textArea.value);
 
     const message = texts.join('\n');
+    console.log(message);
 
     const addedText = document.createElement('p');
     body?.appendChild(addedText);
-
     try {
-        const response = await fetch('http://localhost:5080/api/streamAIResponse/' + message, {
+        const response = await fetch('http://localhost:5080/api/streamAIResponse', {
             method: 'POST',
             headers: {
             'Content-Type': 'application/json',
             },
-            // body: JSON.stringify({ message }),
+            body: JSON.stringify({ message }),
         });
         if (!response.body) { throw new Error('No response body'); }
 
@@ -149,7 +203,7 @@ async function load() {
                     // No UI that hides/shows at the moment
                 },
                 goProgression: (_shiftKey) => {
-                    nav.goForward(true, () => {});
+                    //nav.goForward(true, () => {});
                 }
             });
 

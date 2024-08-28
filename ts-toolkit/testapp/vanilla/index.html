@@ -19,6 +19,8 @@
         <md-filled-icon-button title="Settings" onclick="control('settings')"><md-icon >settings</md-icon></md-filled-icon-button>
         <md-filled-icon-button title="Enter Text" onclick="enableInput()"><md-icon >stylus</md-icon></md-filled-icon-button>
         <md-filled-icon-button title="Submit" onclick="aimagic()"><md-icon >send</md-icon></md-filled-icon-button>
+        <md-filled-icon-button title="Scroll" onclick="enableScroll()"><md-icon >all_inclusive</md-icon></md-filled-icon-button>
+        <md-filled-icon-button title="Scroll" onclick="toggleDarkMode()"><md-icon >dark_mode</md-icon></md-filled-icon-button>
       </div>
     </header>
 
@@ -40,6 +42,12 @@
       }
       function enableInput() {
         window.dispatchEvent(new CustomEvent('enableInput'));
+      }
+      function enableScroll() {
+        window.dispatchEvent(new CustomEvent('enableScroll'));
+      }
+      function toggleDarkMode() {
+        window.dispatchEvent(new CustomEvent('toggleDarkMode'));
       }
     </script>
     <footer id="bottom-bar" aria-label="Bottom Bar">

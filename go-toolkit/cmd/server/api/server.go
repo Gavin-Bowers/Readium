@@ -66,7 +66,7 @@ func (s *PublicationServer) bookHandler(test bool) http.Handler {
 	r.Handle("/debug/pprof/threadcreate", pprof.Handler("threadcreate"))
 
 	// New API Route
-	r.HandleFunc("/api/streamAIResponse/{message}", s.handleOpenAIRequest)
+	r.HandleFunc("/api/streamAIResponse", s.handleOpenAIRequest).Methods("POST")
 
 	r.HandleFunc("/list.json", s.demoList)
 	r.HandleFunc("/{filename}/manifest.json", s.getManifest)
@@ -265,8 +265,28 @@ func (s *PublicationServer) handleOpenAIRequest(w http.ResponseWriter, r *http.R
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.Header().Set("Transfer-Encoding", "chunked")
 
-	vars := mux.Vars(r)
-	message := vars["message"]
+	// vars := mux.Vars(r)
+	// message := vars["message"]
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, "Error reading request body", http.StatusBadRequest)
+		return
+	}
+	defer r.Body.Close()
+
+	// Parse the JSON from the body
+	var requestData struct {
+		Message string `json:"message"`
+	}
+	err = json.Unmarshal(body, &requestData)
+	if err != nil {
+		http.Error(w, "Error parsing JSON", http.StatusBadRequest)
+		return
+	}
+	message := requestData.Message
+
+	fmt.Print("\nCLIENT CONTENT___________________________")
+	fmt.Print(message)
 
 	client := openai.NewClient(s.apiSecret)
 	ctx := context.Background()
@@ -276,7 +296,7 @@ func (s *PublicationServer) handleOpenAIRequest(w http.ResponseWriter, r *http.R
 		Messages: []openai.ChatCompletionMessage{
 			{
 				Role:    openai.ChatMessageRoleSystem,
-				Content: "You are a storyteller. Your goal is to educate with stories. The following story is a dialogue between a girl (Lily) and an inventor (Turing). The setting is fantasy, so please refrain from mentioning modern technology. The goal of the story is to educate the user about turing machines and the fundamentals of computation. The first few lines of dialogue are pre-written, but later lines by Lily will be written by a the user. You will occupy the role of Turing. Continue to teach Lily about computers, ask them questions, and respond to any questions they have. Feel free to progress the plot as you see fit. Lily will need to learn about computers to hijack the security systems (door locks, guards, etc.) and escape. Please write one response from Turing. You may also include story events, describing what happens.",
+				Content: "You are a storyteller. Your goal is to educate with stories. The following story is a dialogue between a girl (Lily) and an inventor (Turing). The setting is fantasy, so please refrain from mentioning modern technology. The goal of the story is to educate the user about turing machines and the fundamentals of computation. The first few lines of dialogue are pre-written, but later lines by Lily will be written by a the user. You will occupy the role of Turing. Continue to teach Lily about computers, ask her questions, and respond to any questions she has. Feel free to progress the plot as you see fit. Lily will need to learn about computers to hijack the security systems (door locks, guards, etc.) and escape. Note that Lily is trapped in her cell and will need to learn how to break out. She and Turing will communicate only by note for the majority of the story. You may also include story events, but don't take actions for Lily. Always let the user respond before continuing the scene. Please write one response from Turing. Your response should be no more than a few sentences and should start with 'Turing: '.",
 			},
 			{
 				Role:    openai.ChatMessageRoleUser,
@@ -295,11 +315,11 @@ func (s *PublicationServer) handleOpenAIRequest(w http.ResponseWriter, r *http.R
 
 	// Use a buffer to write chunks of data to the response
 	buffer := make([]byte, 0, 1024) // Buffer to accumulate chunks
-
+	fmt.Print("\nAPI RESPONSE____________________________")
 	for {
 		response, err := stream.Recv()
 		if errors.Is(err, io.EOF) {
-			fmt.Println("\nStream Finished")
+			fmt.Println("\nSTREAM FINISHED_____________________________")
 			return
 		}
 		if err != nil {
